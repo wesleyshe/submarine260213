@@ -1,7 +1,7 @@
 // Main game logic and p5.js setup
 
-const MAP_SIZE = 200;
-const SCALE = 4; // Display scale multiplier
+const MAP_SIZE = 150;
+const SCALE = 3; // Display scale multiplier
 
 let terrain;
 let player1;
@@ -12,11 +12,28 @@ let particles = [];
 let gameState = 'playing'; // 'playing', 'gameover'
 let winner = null;
 
+// Offscreen buffer for scene rendering
+let scene;
+
+// Visibility ring parameters (in screen pixels)
+const INNER_RADIUS = 100;
+const OUTER_RADIUS = 125;
+const INNER_RADIUS_SQ = INNER_RADIUS * INNER_RADIUS;
+const OUTER_RADIUS_SQ = OUTER_RADIUS * OUTER_RADIUS;
+const MASK_FORWARD_OFFSET = 75; // How far ahead of submarine to center the ring
+
 function setup() {
     // Add padding for green border
     const PADDING = 40;
     const canvas = createCanvas(MAP_SIZE * SCALE + PADDING * 2, MAP_SIZE * SCALE + PADDING * 2);
     canvas.parent('game-container');
+    
+    // Use pixel density 1 for predictable and fast pixel processing
+    pixelDensity(1);
+    
+    // Create offscreen buffer for scene rendering
+    scene = createGraphics(width, height);
+    scene.pixelDensity(1);
     
     initGame();
 }
@@ -102,36 +119,43 @@ function keyIsDownHandler() {
 
 // Call movement handler every frame
 function draw() {
-    // Green background (surrounding terrain)
-    background(0, 255, 0);
-    
     keyIsDownHandler(); // Check for held keys
     
     const PADDING = 40;
     
+    // === PASS A: Render full scene to offscreen buffer ===
+    scene.push();
+    
+    // Green background (surrounding terrain)
+    scene.background(0, 255, 0);
+    
     // Draw black arena in the center
-    push();
-    translate(PADDING, PADDING);
-    fill(0);
-    noStroke();
-    rect(0, 0, MAP_SIZE * SCALE, MAP_SIZE * SCALE);
+    scene.translate(PADDING, PADDING);
+    scene.fill(0);
+    scene.noStroke();
+    scene.rect(0, 0, MAP_SIZE * SCALE, MAP_SIZE * SCALE);
     
     // Scale and draw game elements
-    scale(SCALE);
+    scene.scale(SCALE);
     
-    terrain.draw();
-    updateAndDrawParticles(particles);
+    // Draw terrain (need to draw on scene buffer)
+    drawTerrainToBuffer(scene, terrain);
     
+    // Draw particles
+    drawParticlesToBuffer(scene, particles);
+    
+    // Update and draw torpedoes
     for (let i = torpedoes.length - 1; i >= 0; i--) {
         const torpedo = torpedoes[i];
         torpedo.update(terrain, MAP_SIZE);
-        torpedo.draw();
+        drawTorpedoToBuffer(scene, torpedo);
         
         if (!torpedo.alive) {
             torpedoes.splice(i, 1);
         }
     }
     
+    // Update game logic
     if (gameState === 'playing') {
         player1.update(terrain);
         player2.update(terrain);
@@ -150,8 +174,142 @@ function draw() {
         }
     }
     
-    player1.draw();
-    player2.draw();
+    // Draw submarines
+    drawSubmarineToBuffer(scene, player1);
+    drawSubmarineToBuffer(scene, player2);
     
-    pop();
+    scene.pop();
+    
+    // === PASS B: Copy to main canvas and apply visibility mask ===
+    
+    // First, copy the scene to main canvas
+    image(scene, 0, 0);
+    
+    // Apply visibility ring mask using pixel processing
+    applyVisibilityMask(PADDING);
+}
+
+// Helper function to draw terrain to a graphics buffer
+function drawTerrainToBuffer(buffer, terrain) {
+    buffer.push();
+    buffer.noStroke();
+    buffer.fill(0, 255, 0); // Console green terrain
+    
+    for (let y = 0; y < terrain.grid.length; y++) {
+        for (let x = 0; x < terrain.grid[y].length; x++) {
+            if (terrain.grid[y][x] === 1) {
+                buffer.rect(x * terrain.pixelSize, y * terrain.pixelSize, terrain.pixelSize, terrain.pixelSize);
+            }
+        }
+    }
+    buffer.pop();
+}
+
+// Helper function to draw particles to a graphics buffer
+function drawParticlesToBuffer(buffer, particles) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.update();
+        
+        const alpha = map(p.lifespan, 0, p.maxLifespan, 0, 255);
+        buffer.push();
+        buffer.noStroke();
+        buffer.fill(red(p.col), green(p.col), blue(p.col), alpha);
+        buffer.ellipse(p.x, p.y, p.size);
+        buffer.pop();
+        
+        if (p.isDead()) {
+            particles.splice(i, 1);
+        }
+    }
+}
+
+// Helper function to draw torpedo to a graphics buffer
+function drawTorpedoToBuffer(buffer, torpedo) {
+    if (!torpedo.alive) return;
+    
+    buffer.push();
+    buffer.translate(torpedo.x, torpedo.y);
+    buffer.rotate(torpedo.angle);
+    
+    // Torpedo body - red
+    buffer.fill(255, 0, 0);
+    buffer.noStroke();
+    buffer.ellipse(0, 0, 4, 2);
+    
+    // Trail
+    buffer.fill(255, 0, 0, 100);
+    buffer.ellipse(-2, 0, 2, 1);
+    
+    buffer.pop();
+}
+
+// Helper function to draw submarine to a graphics buffer
+function drawSubmarineToBuffer(buffer, sub) {
+    if (!sub.alive) return;
+    
+    buffer.push();
+    buffer.translate(sub.x, sub.y);
+    buffer.rotate(sub.angle);
+    
+    // Submarine body - red
+    buffer.fill(sub.color);
+    buffer.noStroke();
+    
+    // Main hull
+    buffer.rect(-sub.width/2, -sub.height/2, sub.width, sub.height);
+    
+    // Extended nose for clearer direction (4 pixels long)
+    buffer.rect(sub.width/2, -1, 4, 2);
+    
+    // Conning tower
+    buffer.rect(-1, -sub.height/2 - 1, 2, 2);
+    
+    buffer.pop();
+}
+
+// Apply visibility mask: dim pixels outside both annulus rings
+function applyVisibilityMask(padding) {
+    // Convert submarine map coordinates to screen coordinates
+    const sx1 = padding + player1.x * SCALE;
+    const sy1 = padding + player1.y * SCALE;
+    const sx2 = padding + player2.x * SCALE;
+    const sy2 = padding + player2.y * SCALE;
+    
+    // Compute ring centers offset forward along submarine heading
+    const cx1 = sx1 + cos(player1.angle) * MASK_FORWARD_OFFSET;
+    const cy1 = sy1 + sin(player1.angle) * MASK_FORWARD_OFFSET;
+    const cx2 = sx2 + cos(player2.angle) * MASK_FORWARD_OFFSET;
+    const cy2 = sy2 + sin(player2.angle) * MASK_FORWARD_OFFSET;
+    
+    // Process pixels
+    loadPixels();
+    
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            // Calculate squared distances to both ring centers
+            const dx1 = x - cx1;
+            const dy1 = y - cy1;
+            const d1sq = dx1 * dx1 + dy1 * dy1;
+            
+            const dx2 = x - cx2;
+            const dy2 = y - cy2;
+            const d2sq = dx2 * dx2 + dy2 * dy2;
+            
+            // Check if pixel is inside either annulus (ring)
+            const inRing1 = (d1sq >= INNER_RADIUS_SQ) && (d1sq <= OUTER_RADIUS_SQ);
+            const inRing2 = (d2sq >= INNER_RADIUS_SQ) && (d2sq <= OUTER_RADIUS_SQ);
+            
+            // If NOT visible (not in either ring), dim by 50%
+            if (!inRing1 && !inRing2) {
+                const idx = (y * width + x) * 4;
+                pixels[idx + 0] *= 0.5; // Red
+                pixels[idx + 1] *= 0.5; // Green
+                pixels[idx + 2] *= 0.5; // Blue
+                // Leave alpha unchanged
+            }
+        }
+    }
+    
+    updatePixels();
 }

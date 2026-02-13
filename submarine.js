@@ -24,8 +24,8 @@ class Submarine {
         this.torpedoCooldown = 0;
         this.torpedoCooldownMax = 30; // frames
         
-        // Visual - console green
-        this.color = color(0, 255, 0);
+        // Visual - red
+        this.color = color(255, 0, 0);
     }
     
     update(terrain) {
@@ -122,7 +122,7 @@ class Submarine {
         translate(this.x, this.y);
         rotate(this.angle);
         
-        // Submarine body - console green
+        // Submarine body - red
         fill(this.color);
         noStroke();
         

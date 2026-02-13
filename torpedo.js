@@ -54,13 +54,13 @@ class Torpedo {
         translate(this.x, this.y);
         rotate(this.angle);
         
-        // Torpedo body - console green
-        fill(0, 255, 0);
+        // Torpedo body - red
+        fill(255, 0, 0);
         noStroke();
         ellipse(0, 0, 4, 2);
         
         // Trail
-        fill(0, 255, 0, 100);
+        fill(255, 0, 0, 100);
         ellipse(-2, 0, 2, 1);
         
         pop();
