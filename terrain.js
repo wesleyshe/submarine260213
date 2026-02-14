@@ -4,8 +4,8 @@ class Terrain {
     constructor(mapSize) {
         this.mapSize = mapSize;
         this.grid = [];
-        this.pixelSize = 2; // Size of each terrain pixel
-        this.targetDensity = 0.15; // 15% coverage
+        this.pixelSize = CONFIG.TERRAIN.PIXEL_SIZE;
+        this.targetDensity = CONFIG.TERRAIN.TARGET_DENSITY;
         this.generate();
     }
     
@@ -19,38 +19,34 @@ class Terrain {
         
         // Top and bottom edges
         for (let x = 0; x < gridSize; x++) {
-            this.grid[0][x] = 1; // Top edge
-            this.grid[gridSize - 1][x] = 1; // Bottom edge
-            active.push({x: x, y: 1}); // Add row below top edge as active
-            active.push({x: x, y: gridSize - 2}); // Add row above bottom edge as active
+            this.grid[0][x] = 1;
+            this.grid[gridSize - 1][x] = 1;
+            active.push({x: x, y: 1});
+            active.push({x: x, y: gridSize - 2});
         }
         
         // Left and right edges (skip corners already done)
         for (let y = 1; y < gridSize - 1; y++) {
-            this.grid[y][0] = 1; // Left edge
-            this.grid[y][gridSize - 1] = 1; // Right edge
-            active.push({x: 1, y: y}); // Add column right of left edge as active
-            active.push({x: gridSize - 2, y: y}); // Add column left of right edge as active
+            this.grid[y][0] = 1;
+            this.grid[y][gridSize - 1] = 1;
+            active.push({x: 1, y: y});
+            active.push({x: gridSize - 2, y: y});
         }
         
         // Grow terrain inward from edges
-        const maxDepth = Math.floor(gridSize * 0.25); // Control how far terrain extends inward
-        const growthProbability = 0.35; // Probability of growth
+        const maxDepth = Math.floor(gridSize * CONFIG.TERRAIN.EDGE_GROWTH_DEPTH);
+        const growthProbability = CONFIG.TERRAIN.GROWTH_PROBABILITY;
         
         while (active.length > 0) {
-            // Pick random active cell
             const idx = Math.floor(random(active.length));
             const current = active.splice(idx, 1)[0];
             
-            // Check depth from edge
             const minDistToEdge = Math.min(current.x, current.y, gridSize - 1 - current.x, gridSize - 1 - current.y);
             if (minDistToEdge >= maxDepth) continue;
             
-            // Maybe place terrain here
             if (this.grid[current.y][current.x] === 0 && random() < growthProbability) {
                 this.grid[current.y][current.x] = 1;
                 
-                // Add neighbors as potential growth points
                 const neighbors = [
                     {x: current.x + 1, y: current.y},
                     {x: current.x - 1, y: current.y},
@@ -60,9 +56,7 @@ class Terrain {
                 
                 for (let n of neighbors) {
                     if (n.x > 0 && n.x < gridSize - 1 && n.y > 0 && n.y < gridSize - 1) {
-                        // Check if this neighbor is already terrain or already in active list
                         if (this.grid[n.y][n.x] === 0) {
-                            // Avoid duplicates in active list
                             const alreadyActive = active.some(a => a.x === n.x && a.y === n.y);
                             if (!alreadyActive) {
                                 active.push(n);
@@ -73,32 +67,29 @@ class Terrain {
             }
         }
         
-        // Smoothing pass to make terrain more organic
-        this.smooth();
-        this.smooth();
+        // Smoothing pass
+        for (let i = 0; i < CONFIG.TERRAIN.SMOOTH_PASSES; i++) {
+            this.smooth();
+        }
         
         // Generate interior obstacles
         this.generateInteriorBlobs(gridSize);
     }
     
     generateInteriorBlobs(gridSize) {
-        // Generate 3-7 interior terrain blobs
-        const numBlobs = Math.floor(random(3, 8)); // 3-7 blobs
-        const edgeMargin = Math.floor(25 / this.pixelSize); // 25 pixels from edge
+        const numBlobs = Math.floor(random(CONFIG.TERRAIN.MIN_BLOBS, CONFIG.TERRAIN.MAX_BLOBS + 1));
+        const edgeMargin = Math.floor(CONFIG.TERRAIN.BLOB_EDGE_MARGIN / this.pixelSize);
         
         for (let i = 0; i < numBlobs; i++) {
-            // Find a valid interior seed point
             let seedX, seedY;
             let attempts = 0;
             let validSeed = false;
             
             while (!validSeed && attempts < 50) {
-                // Pick random point in interior
                 seedX = Math.floor(random(edgeMargin, gridSize - edgeMargin));
                 seedY = Math.floor(random(edgeMargin, gridSize - edgeMargin));
                 
-                // Check if seed location is clear (not touching existing terrain)
-                const clearRadius = 3; // Small radius around seed must be clear
+                const clearRadius = CONFIG.TERRAIN.BLOB_CLEAR_RADIUS;
                 validSeed = true;
                 
                 for (let dy = -clearRadius; dy <= clearRadius; dy++) {
@@ -119,8 +110,7 @@ class Terrain {
             }
             
             if (validSeed) {
-                // Grow blob from this seed
-                const blobSize = Math.floor(random(40, 80)); // Medium-sized blobs
+                const blobSize = Math.floor(random(CONFIG.TERRAIN.BLOB_MIN_SIZE, CONFIG.TERRAIN.BLOB_MAX_SIZE));
                 this.growInteriorBlob(seedX, seedY, blobSize, gridSize);
             }
         }
@@ -131,19 +121,16 @@ class Terrain {
     
     growInteriorBlob(seedX, seedY, maxSize, gridSize) {
         const active = [{x: seedX, y: seedY}];
-        const blobCells = new Set(); // Track cells in this blob
+        const blobCells = new Set();
         let grown = 0;
         
         while (active.length > 0 && grown < maxSize) {
-            // Pick random active cell
             const idx = Math.floor(random(active.length));
             const current = active.splice(idx, 1)[0];
             
-            // Skip if already placed
             const cellKey = `${current.x},${current.y}`;
             if (blobCells.has(cellKey)) continue;
             
-            // Check if this cell touches pre-existing terrain (not part of this blob)
             let touchesPreExisting = false;
             for (let dy = -1; dy <= 1; dy++) {
                 for (let dx = -1; dx <= 1; dx++) {
@@ -153,7 +140,6 @@ class Terrain {
                     const neighborKey = `${checkX},${checkY}`;
                     
                     if (checkX >= 0 && checkX < gridSize && checkY >= 0 && checkY < gridSize) {
-                        // If neighbor is terrain but NOT part of this blob, it's pre-existing
                         if (this.grid[checkY][checkX] === 1 && !blobCells.has(neighborKey)) {
                             touchesPreExisting = true;
                             break;
@@ -163,18 +149,13 @@ class Terrain {
                 if (touchesPreExisting) break;
             }
             
-            // If touching pre-existing terrain, skip this cell but continue with others
-            if (touchesPreExisting) {
-                continue;
-            }
+            if (touchesPreExisting) continue;
             
-            // Place terrain at current position
             if (this.grid[current.y][current.x] === 0) {
                 this.grid[current.y][current.x] = 1;
                 blobCells.add(cellKey);
                 grown++;
                 
-                // Add neighbors as potential growth points
                 const neighbors = [
                     {x: current.x + 1, y: current.y},
                     {x: current.x - 1, y: current.y},
@@ -182,12 +163,11 @@ class Terrain {
                     {x: current.x, y: current.y - 1}
                 ];
                 
-                // Randomly add neighbors with high probability for continuous blobs
                 for (let n of neighbors) {
                     if (n.x > 0 && n.x < gridSize - 1 && n.y > 0 && n.y < gridSize - 1) {
                         const nKey = `${n.x},${n.y}`;
-                        if (this.grid[n.y][n.x] === 0 && !blobCells.has(nKey) && random() < 0.6) {
-                            // Check if neighbor isn't already in active list
+                        if (this.grid[n.y][n.x] === 0 && !blobCells.has(nKey) && 
+                            random() < CONFIG.TERRAIN.BLOB_GROWTH_PROBABILITY) {
                             const alreadyActive = active.some(a => a.x === n.x && a.y === n.y);
                             if (!alreadyActive) {
                                 active.push(n);
@@ -226,9 +206,9 @@ class Terrain {
                 
                 // More lenient rules to preserve continuous terrain
                 if (this.grid[y][x] === 1) {
-                    newGrid[y][x] = neighbors >= 3 ? 1 : 0;
+                    newGrid[y][x] = neighbors >= CONFIG.TERRAIN.SMOOTH_SURVIVE_THRESHOLD ? 1 : 0;
                 } else {
-                    newGrid[y][x] = neighbors >= 5 ? 1 : 0;
+                    newGrid[y][x] = neighbors >= CONFIG.TERRAIN.SMOOTH_BIRTH_THRESHOLD ? 1 : 0;
                 }
             }
         }
@@ -236,35 +216,18 @@ class Terrain {
         this.grid = newGrid;
     }
     
-    draw() {
-        push();
-        noStroke();
-        fill(0, 255, 0); // Console green terrain
-        
-        for (let y = 0; y < this.grid.length; y++) {
-            for (let x = 0; x < this.grid[y].length; x++) {
-                if (this.grid[y][x] === 1) {
-                    rect(x * this.pixelSize, y * this.pixelSize, this.pixelSize, this.pixelSize);
-                }
-            }
-        }
-        pop();
-    }
-    
     isSolid(x, y) {
         const gridX = Math.floor(x / this.pixelSize);
         const gridY = Math.floor(y / this.pixelSize);
         
-        if (gridX < 0 || gridX >= this.grid[0].length || 
-            gridY < 0 || gridY >= this.grid.length) {
-            return true; // Treat out of bounds as solid
-        }
-        
-        return this.grid[gridY][gridX] === 1;
+        // Use safe array access
+        const cell = Utils.safeArrayAccess(this.grid, gridY, gridX, 1);
+        return cell === 1;
     }
     
     isAreaClear(x, y, radius) {
-        // Check if area around position is clear of terrain
+        if (!this.grid || !this.grid.length) return false;
+        
         const checkRadius = Math.ceil(radius / this.pixelSize);
         const centerX = Math.floor(x / this.pixelSize);
         const centerY = Math.floor(y / this.pixelSize);
@@ -286,8 +249,8 @@ class Terrain {
     }
     
     findSafeSpawn(preferredX, preferredY, otherSpawn, mapSize) {
-        const minClearRadius = 15; // Minimum clear space around spawn
-        const minDistanceFromOther = 80; // Minimum distance between spawns
+        const minClearRadius = CONFIG.SUBMARINE.SPAWN_CLEAR_RADIUS;
+        const minDistanceFromOther = CONFIG.SUBMARINE.MIN_SPAWN_DISTANCE;
         
         // Try preferred position first
         if (this.isAreaClear(preferredX, preferredY, minClearRadius)) {
@@ -316,8 +279,8 @@ class Terrain {
             }
         }
         
-        // Fallback: return preferred position (shouldn't happen often)
+        // Fallback
+        console.warn('Failed to find safe spawn, using preferred position');
         return {x: preferredX, y: preferredY};
     }
-    
 }

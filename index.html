@@ -14,6 +14,7 @@
             align-items: center;
             min-height: 100vh;
             background: #000000;
+            font-family: Consolas, Monaco, "Courier New", monospace;
         }
         #game-container {
             text-align: center;
@@ -23,6 +24,10 @@
 <body>
     <div id="game-container"></div>
     
+    <!-- Load files in dependency order -->
+    <script src="config.js"></script>
+    <script src="utils.js"></script>
+    <script src="renderer.js"></script>
     <script src="terrain.js"></script>
     <script src="submarine.js"></script>
     <script src="torpedo.js"></script>
