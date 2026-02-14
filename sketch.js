@@ -27,10 +27,13 @@ const OUTER_RADIUS_SQ = OUTER_RADIUS * OUTER_RADIUS;
 const MASK_FORWARD_OFFSET = 40; // How far ahead of submarine to center the ring
 
 function setup() {
-    // Add padding for green border and UI area at bottom
+    // Add padding for green border and UI area on the right
     const PADDING = 40;
-    const UI_HEIGHT = OUTER_RADIUS * 2 + 6 + 40; // Mini buffer height + padding
-    const canvas = createCanvas(MAP_SIZE * SCALE + PADDING * 2, MAP_SIZE * SCALE + PADDING * 2 + UI_HEIGHT);
+    const miniW = OUTER_RADIUS * 2 + 6;
+    const miniH = OUTER_RADIUS * 2 + 6;
+    const RIGHT_PANEL_WIDTH = miniW + PADDING * 2;
+    
+    const canvas = createCanvas(MAP_SIZE * SCALE + PADDING * 2 + RIGHT_PANEL_WIDTH, MAP_SIZE * SCALE + PADDING * 2);
     canvas.parent('game-container');
     
     // Use pixel density 1 for predictable and fast pixel processing
@@ -41,8 +44,6 @@ function setup() {
     scene.pixelDensity(1);
     
     // Create mini view buffers for annulus previews
-    const miniW = OUTER_RADIUS * 2 + 6;
-    const miniH = OUTER_RADIUS * 2 + 6;
     mini1 = createGraphics(miniW, miniH);
     mini1.pixelDensity(1);
     mini2 = createGraphics(miniW, miniH);
@@ -105,8 +106,8 @@ function keyIsDownHandler() {
     if (keyIsDown(87)) { // W
         player1.accelerate(1);
     }
-    if (keyIsDown(83)) { // S
-        player1.accelerate(-1);
+    if (keyIsDown(83)) { // S - Brake instead of reverse
+        player1.brake();
     }
     if (keyIsDown(65)) { // A
         player1.turn(-1);
@@ -119,8 +120,8 @@ function keyIsDownHandler() {
     if (keyIsDown(UP_ARROW)) {
         player2.accelerate(1);
     }
-    if (keyIsDown(DOWN_ARROW)) {
-        player2.accelerate(-1);
+    if (keyIsDown(DOWN_ARROW)) { // Down - Brake instead of reverse
+        player2.brake();
     }
     if (keyIsDown(LEFT_ARROW)) {
         player2.turn(-1);
@@ -136,7 +137,9 @@ function draw() {
     
     const PADDING = 40;
     const ARENA_SIZE = MAP_SIZE * SCALE;
-    const ARENA_BOTTOM = PADDING + ARENA_SIZE;
+    const ARENA_RIGHT = PADDING + ARENA_SIZE;
+    const ARENA_TOP = PADDING;
+    const ARENA_HEIGHT = ARENA_SIZE;
     
     // === PASS A: Render full scene to offscreen buffer ===
     scene.push();
@@ -203,7 +206,7 @@ function draw() {
     // Apply visibility ring mask using pixel processing
     applyVisibilityMask(PADDING);
     
-    // === PASS C: Re-draw submarines at full brightness (after dimming) ===
+    // === PASS C: Re-draw submarines and torpedoes at full brightness (after dimming) ===
     push();
     translate(PADDING, PADDING);
     scale(SCALE);
@@ -214,7 +217,7 @@ function draw() {
         translate(player1.x, player1.y);
         rotate(player1.angle);
         
-        fill(player1.color);
+        fill(player1.getColor());
         noStroke();
         
         rect(-player1.width/2, -player1.height/2, player1.width, player1.height);
@@ -229,7 +232,7 @@ function draw() {
         translate(player2.x, player2.y);
         rotate(player2.angle);
         
-        fill(player2.color);
+        fill(player2.getColor());
         noStroke();
         
         rect(-player2.width/2, -player2.height/2, player2.width, player2.height);
@@ -239,31 +242,49 @@ function draw() {
         pop();
     }
     
+    // Draw torpedoes at full brightness (always red)
+    for (let torpedo of torpedoes) {
+        if (torpedo.alive) {
+            push();
+            translate(torpedo.x, torpedo.y);
+            rotate(torpedo.angle);
+            
+            // Torpedo body - red
+            fill(255, 0, 0);
+            noStroke();
+            ellipse(0, 0, 4, 2);
+            
+            // Trail
+            fill(255, 0, 0, 100);
+            ellipse(-2, 0, 2, 1);
+            
+            pop();
+        }
+    }
+    
     pop();
     
     // === PASS D: Render annulus preview buffers ===
-    renderAnnulusPreviews(PADDING, ARENA_BOTTOM);
+    renderAnnulusPreviews(PADDING, ARENA_RIGHT, ARENA_TOP, ARENA_HEIGHT);
 }
 
 // Render both annulus preview buffers with rotation and masking
-function renderAnnulusPreviews(padding, arenaBottom) {
+function renderAnnulusPreviews(padding, arenaRight, arenaTop, arenaHeight) {
     const miniW = OUTER_RADIUS * 2 + 6;
     const miniH = OUTER_RADIUS * 2 + 6;
-    const uiPadding = 20;
     
-    // Calculate centers for both previews
-    const leftCx = width * 0.25;
-    const leftCy = arenaBottom + uiPadding + miniH / 2;
-    const rightCx = width * 0.75;
-    const rightCy = arenaBottom + uiPadding + miniH / 2;
+    // Calculate centers for both previews on the right side
+    const cx = arenaRight + padding + miniW / 2;
+    const topCy = arenaTop + arenaHeight * 0.25;
+    const bottomCy = arenaTop + arenaHeight * 0.75;
     
-    // Render player 1's annulus view
+    // Render player 1's annulus view (top)
     renderAnnulusPreview(mini1, player1, miniW, miniH, padding);
-    image(mini1, leftCx - miniW / 2, leftCy - miniH / 2);
+    image(mini1, cx - miniW / 2, topCy - miniH / 2);
     
-    // Render player 2's annulus view
+    // Render player 2's annulus view (bottom)
     renderAnnulusPreview(mini2, player2, miniW, miniH, padding);
-    image(mini2, rightCx - miniW / 2, rightCy - miniH / 2);
+    image(mini2, cx - miniW / 2, bottomCy - miniH / 2);
 }
 
 // Render a single annulus preview for a submarine
@@ -391,8 +412,8 @@ function drawSubmarineToBuffer(buffer, sub) {
     buffer.translate(sub.x, sub.y);
     buffer.rotate(sub.angle);
     
-    // Submarine body - red
-    buffer.fill(sub.color);
+    // Submarine body - use dynamic color based on idle state
+    buffer.fill(sub.getColor());
     buffer.noStroke();
     
     // Main hull
