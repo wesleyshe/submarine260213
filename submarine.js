@@ -119,9 +119,9 @@ class Submarine {
         
         // Check if any submarine pixel overlaps terrain
         for (let pixel of pixels) {
-            // Check bounds (treat out-of-bounds as solid)
+            // Skip out-of-bounds pixels (boundary clamping handles map edges separately)
             if (!Utils.inBounds(pixel.x, pixel.y, 0, 0, terrain.mapSize - 1, terrain.mapSize - 1)) {
-                return true;
+                continue;
             }
             
             // Check terrain
@@ -136,29 +136,18 @@ class Submarine {
     getSubmarinePixels(cx, cy) {
         const pixels = [];
         
-        const addRotatedRect = (localX, localY, w, h) => {
-            for (let ly = 0; ly < h; ly++) {
-                for (let lx = 0; lx < w; lx++) {
-                    const px = localX + lx;
-                    const py = localY + ly;
-                    
-                    const rotated = Utils.rotateVector(px, py, this.angle);
-                    const wx = cx + rotated.x;
-                    const wy = cy + rotated.y;
-                    
-                    pixels.push({ x: wx, y: wy });
-                }
+        // Simplified rectangular collision box (ignoring rotation for efficiency)
+        // Use a simple bounding box instead of the detailed submarine shape
+        const halfWidth = this.width / 2;
+        const halfHeight = this.height / 2;
+        
+        for (let ly = -halfHeight; ly < halfHeight; ly++) {
+            for (let lx = -halfWidth; lx < halfWidth; lx++) {
+                const wx = cx + lx;
+                const wy = cy + ly;
+                pixels.push({ x: wx, y: wy });
             }
-        };
-        
-        // Main hull
-        addRotatedRect(-this.width/2, -this.height/2, this.width, this.height);
-        
-        // Extended nose
-        addRotatedRect(this.width/2, -1, CONFIG.SUBMARINE.NOSE_LENGTH, 2);
-        
-        // Conning tower
-        addRotatedRect(-1, -this.height/2 - 1, CONFIG.SUBMARINE.TOWER_WIDTH, CONFIG.SUBMARINE.TOWER_HEIGHT);
+        }
         
         return pixels;
     }
