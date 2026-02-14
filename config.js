@@ -47,8 +47,9 @@ const CONFIG = {
         HOLD_RED_SECONDS: 0.5, // Stay red for this long after stopping
         FADE_SECONDS: 1.5, // Fade from red to green over this duration
         COLLISION_RADIUS: 5, // Approximate radius for bounds checking
-        SPAWN_CLEAR_RADIUS: 15,
+        SPAWN_CLEAR_RADIUS: 20, // Increased to ensure more space around spawn
         MIN_SPAWN_DISTANCE: 80,
+        MIN_PASSAGE_WIDTH: 16, // Minimum width of clear passage needed for spawning
         NOSE_LENGTH: 4, // Extended nose indicator
         TOWER_WIDTH: 2,
         TOWER_HEIGHT: 2

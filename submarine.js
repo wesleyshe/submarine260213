@@ -71,6 +71,10 @@ class Submarine {
         // Axis-separated collision: try X first
         if (this.checkCollisionAt(nx, this.y, terrain)) {
             this.velocity.x = 0;
+            // Play collision sound if moving
+            if (speed > CONFIG.SUBMARINE.STOP_THRESHOLD) {
+                SoundManager.playCollision(this.playerNumber);
+            }
         } else {
             this.x = nx;
         }
@@ -78,6 +82,10 @@ class Submarine {
         // Then try Y
         if (this.checkCollisionAt(this.x, ny, terrain)) {
             this.velocity.y = 0;
+            // Play collision sound if moving
+            if (speed > CONFIG.SUBMARINE.STOP_THRESHOLD) {
+                SoundManager.playCollision(this.playerNumber);
+            }
         } else {
             this.y = ny;
         }
@@ -88,9 +96,19 @@ class Submarine {
         this.x = constrain(this.x, CONFIG.SUBMARINE.COLLISION_RADIUS, terrain.mapSize - CONFIG.SUBMARINE.COLLISION_RADIUS);
         this.y = constrain(this.y, CONFIG.SUBMARINE.COLLISION_RADIUS, terrain.mapSize - CONFIG.SUBMARINE.COLLISION_RADIUS);
         
-        // If we hit bounds, zero velocity
-        if (this.x !== oldX) this.velocity.x = 0;
-        if (this.y !== oldY) this.velocity.y = 0;
+        // If we hit bounds, zero velocity and play collision sound
+        if (this.x !== oldX) {
+            this.velocity.x = 0;
+            if (speed > CONFIG.SUBMARINE.STOP_THRESHOLD) {
+                SoundManager.playCollision(this.playerNumber);
+            }
+        }
+        if (this.y !== oldY) {
+            this.velocity.y = 0;
+            if (speed > CONFIG.SUBMARINE.STOP_THRESHOLD) {
+                SoundManager.playCollision(this.playerNumber);
+            }
+        }
     }
     
     getColor() {
@@ -204,5 +222,49 @@ class Submarine {
             height: this.height,
             angle: this.angle
         };
+    }
+    
+    /**
+     * Check if a point (like a torpedo) hits the submarine's irregular shape
+     * This includes the main hull, extended nose, and conning tower
+     */
+    checkPointHit(px, py) {
+        if (!this.alive) return false;
+        
+        // Transform point to submarine's local coordinate space
+        const dx = px - this.x;
+        const dy = py - this.y;
+        
+        // Rotate point to align with submarine's orientation
+        const cos_a = Math.cos(-this.angle);
+        const sin_a = Math.sin(-this.angle);
+        const localX = dx * cos_a - dy * sin_a;
+        const localY = dx * sin_a + dy * cos_a;
+        
+        // Check main hull (rectangle centered at origin)
+        const halfWidth = this.width / 2;
+        const halfHeight = this.height / 2;
+        if (localX >= -halfWidth && localX <= halfWidth &&
+            localY >= -halfHeight && localY <= halfHeight) {
+            return true;
+        }
+        
+        // Check extended nose (rectangle extending forward from hull)
+        // Nose starts at width/2 and extends CONFIG.SUBMARINE.NOSE_LENGTH forward
+        // Nose height is 2 pixels, centered vertically
+        if (localX >= halfWidth && localX <= halfWidth + CONFIG.SUBMARINE.NOSE_LENGTH &&
+            localY >= -1 && localY <= 1) {
+            return true;
+        }
+        
+        // Check conning tower (rectangle on top of hull)
+        // Tower starts at -1 on x-axis, has width of TOWER_WIDTH
+        // Tower extends upward from -height/2
+        if (localX >= -1 && localX <= -1 + CONFIG.SUBMARINE.TOWER_WIDTH &&
+            localY >= -halfHeight - 1 && localY <= -halfHeight - 1 + CONFIG.SUBMARINE.TOWER_HEIGHT) {
+            return true;
+        }
+        
+        return false;
     }
 }

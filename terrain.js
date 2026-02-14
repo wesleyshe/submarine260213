@@ -72,6 +72,9 @@ class Terrain {
             this.smooth();
         }
         
+        // Remove lone pixels to ensure all terrain is at least 2 pixels
+        this.removeLonePixels();
+        
         // Generate interior obstacles
         this.generateInteriorBlobs(gridSize);
     }
@@ -117,6 +120,9 @@ class Terrain {
         
         // Apply light smoothing to interior blobs
         this.smooth();
+        
+        // Remove lone pixels again after blob generation
+        this.removeLonePixels();
     }
     
     growInteriorBlob(seedX, seedY, maxSize, gridSize) {
@@ -216,6 +222,34 @@ class Terrain {
         this.grid = newGrid;
     }
     
+    removeLonePixels() {
+        const gridSize = this.grid.length;
+        const newGrid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+        
+        // Copy the grid but remove lone pixels
+        for (let y = 0; y < gridSize; y++) {
+            for (let x = 0; x < gridSize; x++) {
+                if (this.grid[y][x] === 1) {
+                    // Count orthogonal neighbors (not diagonal)
+                    let orthogonalNeighbors = 0;
+                    
+                    if (y > 0 && this.grid[y - 1][x] === 1) orthogonalNeighbors++;
+                    if (y < gridSize - 1 && this.grid[y + 1][x] === 1) orthogonalNeighbors++;
+                    if (x > 0 && this.grid[y][x - 1] === 1) orthogonalNeighbors++;
+                    if (x < gridSize - 1 && this.grid[y][x + 1] === 1) orthogonalNeighbors++;
+                    
+                    // Keep pixel only if it has at least 2 orthogonal neighbors
+                    // This prevents single-pixel protrusions or thin lines
+                    if (orthogonalNeighbors >= 2) {
+                        newGrid[y][x] = 1;
+                    }
+                }
+            }
+        }
+        
+        this.grid = newGrid;
+    }
+    
     isSolid(x, y) {
         const gridX = Math.floor(x / this.pixelSize);
         const gridY = Math.floor(y / this.pixelSize);
@@ -253,7 +287,7 @@ class Terrain {
         const minDistanceFromOther = CONFIG.SUBMARINE.MIN_SPAWN_DISTANCE;
         
         // Try preferred position first
-        if (this.isAreaClear(preferredX, preferredY, minClearRadius)) {
+        if (this.isSpawnSafe(preferredX, preferredY, minClearRadius)) {
             if (!otherSpawn || dist(preferredX, preferredY, otherSpawn.x, otherSpawn.y) > minDistanceFromOther) {
                 return {x: preferredX, y: preferredY};
             }
@@ -271,7 +305,7 @@ class Terrain {
                     continue;
                 }
                 
-                if (this.isAreaClear(testX, testY, minClearRadius)) {
+                if (this.isSpawnSafe(testX, testY, minClearRadius)) {
                     if (!otherSpawn || dist(testX, testY, otherSpawn.x, otherSpawn.y) > minDistanceFromOther) {
                         return {x: testX, y: testY};
                     }
@@ -282,5 +316,53 @@ class Terrain {
         // Fallback
         console.warn('Failed to find safe spawn, using preferred position');
         return {x: preferredX, y: preferredY};
+    }
+    
+    isSpawnSafe(x, y, radius) {
+        // First check if the immediate area is clear
+        if (!this.isAreaClear(x, y, radius)) {
+            return false;
+        }
+        
+        // Now check if there's enough passage space (not trapped between obstacles)
+        // Check in 4 cardinal directions for clear passages
+        const passageWidth = CONFIG.SUBMARINE.MIN_PASSAGE_WIDTH;
+        let clearDirections = 0;
+        
+        // Check right
+        if (this.hasPassage(x, y, 1, 0, passageWidth)) clearDirections++;
+        // Check left
+        if (this.hasPassage(x, y, -1, 0, passageWidth)) clearDirections++;
+        // Check down
+        if (this.hasPassage(x, y, 0, 1, passageWidth)) clearDirections++;
+        // Check up
+        if (this.hasPassage(x, y, 0, -1, passageWidth)) clearDirections++;
+        
+        // Need at least 2 clear directions to ensure not trapped
+        return clearDirections >= 2;
+    }
+    
+    hasPassage(startX, startY, dirX, dirY, width) {
+        // Check if there's a clear passage of specified width in the given direction
+        const checkDistance = CONFIG.SUBMARINE.MIN_PASSAGE_WIDTH * 2;
+        const perpDirX = -dirY; // Perpendicular direction
+        const perpDirY = dirX;
+        
+        for (let dist = 1; dist <= checkDistance; dist++) {
+            const centerX = startX + dirX * dist;
+            const centerY = startY + dirY * dist;
+            
+            // Check perpendicular width at this distance
+            for (let w = -width/2; w <= width/2; w++) {
+                const checkX = centerX + perpDirX * w;
+                const checkY = centerY + perpDirY * w;
+                
+                if (this.isSolid(checkX, checkY)) {
+                    return false; // Passage blocked
+                }
+            }
+        }
+        
+        return true; // Passage is clear
     }
 }

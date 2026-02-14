@@ -54,7 +54,7 @@ class Torpedo {
         if (!this.alive || !submarine || !submarine.alive) return false;
         if (this.owner === submarine.playerNumber) return false;
         
-        const d = dist(this.x, this.y, submarine.x, submarine.y);
-        return d < this.radius + CONFIG.SUBMARINE.WIDTH / 2;
+        // Use the submarine's irregular hitbox check
+        return submarine.checkPointHit(this.x, this.y);
     }
 }

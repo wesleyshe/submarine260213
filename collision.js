@@ -39,5 +39,9 @@ function checkSubmarineCollision(sub1, sub2) {
         // Bounce velocities
         sub1.velocity.mult(-CONFIG.COLLISION.BOUNCE_DAMPING);
         sub2.velocity.mult(-CONFIG.COLLISION.BOUNCE_DAMPING);
+        
+        // Play collision sounds for both submarines
+        SoundManager.playCollision(sub1.playerNumber);
+        SoundManager.playCollision(sub2.playerNumber);
     }
 }

@@ -51,6 +51,9 @@ function setup() {
             miniSize: miniSize
         };
         
+        // Initialize sound manager
+        SoundManager.init();
+        
         initGame();
     } catch (e) {
         console.error('Setup failed:', e);
@@ -78,16 +81,25 @@ function initGame() {
 
 function keyPressed() {
     try {
+        // Resume audio context on first user interaction
+        SoundManager.resume();
+        
         // Player 1 fire
         if ((key === 'x' || key === 'X') && player1) {
             const torpedo = player1.fireTorpedo();
-            if (torpedo) torpedoes.push(torpedo);
+            if (torpedo) {
+                torpedoes.push(torpedo);
+                SoundManager.playTorpedoLaunch();
+            }
         }
         
         // Player 2 fire
         if ((key === 'm' || key === 'M') && player2) {
             const torpedo = player2.fireTorpedo();
-            if (torpedo) torpedoes.push(torpedo);
+            if (torpedo) {
+                torpedoes.push(torpedo);
+                SoundManager.playTorpedoLaunch();
+            }
         }
         
         // Reset game
@@ -125,6 +137,13 @@ function handleInput() {
 function draw() {
     try {
         handleInput();
+        
+        // Start ambient sound when playing
+        if (gameState === 'playing') {
+            SoundManager.startAmbient();
+        } else if (gameState === 'gameover') {
+            SoundManager.stopAmbient();
+        }
         
         // Render full scene to offscreen buffer
         renderScene();
@@ -194,6 +213,18 @@ function renderScene() {
         if (player1) player1.update(terrain);
         if (player2) player2.update(terrain);
         
+        // Update engine sound based on submarine movement and speed
+        const player1Speed = player1 ? Math.sqrt(player1.velocity.x * player1.velocity.x + player1.velocity.y * player1.velocity.y) : 0;
+        const player2Speed = player2 ? Math.sqrt(player2.velocity.x * player2.velocity.x + player2.velocity.y * player2.velocity.y) : 0;
+        
+        const isPlayer1Moving = player1 && (player1Speed > CONFIG.SUBMARINE.STOP_THRESHOLD || player1.isSteering);
+        const isPlayer2Moving = player2 && (player2Speed > CONFIG.SUBMARINE.STOP_THRESHOLD || player2.isSteering);
+        const isAnySubMoving = isPlayer1Moving || isPlayer2Moving;
+        
+        // Use the faster submarine's speed for engine sound
+        const currentSpeed = Math.max(player1Speed, player2Speed);
+        SoundManager.updateEngine(isAnySubMoving, currentSpeed, CONFIG.SUBMARINE.MAX_SPEED);
+        
         checkTorpedoHits(torpedoes, [player1, player2], particles);
         checkSubmarineCollision(player1, player2);
         
@@ -201,10 +232,12 @@ function renderScene() {
             gameState = 'gameover';
             winner = 2;
             createDebris(particles, player1.x, player1.y, CONFIG.PARTICLES.DEBRIS_COUNT);
+            SoundManager.playExplosion();
         } else if (player2 && !player2.alive) {
             gameState = 'gameover';
             winner = 1;
             createDebris(particles, player2.x, player2.y, CONFIG.PARTICLES.DEBRIS_COUNT);
+            SoundManager.playExplosion();
         }
     }
     
