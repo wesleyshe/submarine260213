@@ -7,7 +7,7 @@ class Torpedo {
         this.angle = angle;
         this.owner = owner; // Which player fired it
         
-        this.speed = 2.5;
+        this.speed = 1.5;
         this.velocity = createVector(cos(angle) * this.speed, sin(angle) * this.speed);
         
         this.radius = 2;

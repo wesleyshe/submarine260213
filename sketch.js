@@ -1,7 +1,7 @@
 // Main game logic and p5.js setup
 
-const MAP_SIZE = 150;
-const SCALE = 3; // Display scale multiplier
+const MAP_SIZE = 200;
+const SCALE = 4; // Display scale multiplier
 
 let terrain;
 let player1;
@@ -15,17 +15,22 @@ let winner = null;
 // Offscreen buffer for scene rendering
 let scene;
 
+// Mini view buffers for annulus previews
+let mini1;
+let mini2;
+
 // Visibility ring parameters (in screen pixels)
 const INNER_RADIUS = 100;
 const OUTER_RADIUS = 125;
 const INNER_RADIUS_SQ = INNER_RADIUS * INNER_RADIUS;
 const OUTER_RADIUS_SQ = OUTER_RADIUS * OUTER_RADIUS;
-const MASK_FORWARD_OFFSET = 75; // How far ahead of submarine to center the ring
+const MASK_FORWARD_OFFSET = 40; // How far ahead of submarine to center the ring
 
 function setup() {
-    // Add padding for green border
+    // Add padding for green border and UI area at bottom
     const PADDING = 40;
-    const canvas = createCanvas(MAP_SIZE * SCALE + PADDING * 2, MAP_SIZE * SCALE + PADDING * 2);
+    const UI_HEIGHT = OUTER_RADIUS * 2 + 6 + 40; // Mini buffer height + padding
+    const canvas = createCanvas(MAP_SIZE * SCALE + PADDING * 2, MAP_SIZE * SCALE + PADDING * 2 + UI_HEIGHT);
     canvas.parent('game-container');
     
     // Use pixel density 1 for predictable and fast pixel processing
@@ -34,6 +39,14 @@ function setup() {
     // Create offscreen buffer for scene rendering
     scene = createGraphics(width, height);
     scene.pixelDensity(1);
+    
+    // Create mini view buffers for annulus previews
+    const miniW = OUTER_RADIUS * 2 + 6;
+    const miniH = OUTER_RADIUS * 2 + 6;
+    mini1 = createGraphics(miniW, miniH);
+    mini1.pixelDensity(1);
+    mini2 = createGraphics(miniW, miniH);
+    mini2.pixelDensity(1);
     
     initGame();
 }
@@ -122,6 +135,8 @@ function draw() {
     keyIsDownHandler(); // Check for held keys
     
     const PADDING = 40;
+    const ARENA_SIZE = MAP_SIZE * SCALE;
+    const ARENA_BOTTOM = PADDING + ARENA_SIZE;
     
     // === PASS A: Render full scene to offscreen buffer ===
     scene.push();
@@ -133,7 +148,7 @@ function draw() {
     scene.translate(PADDING, PADDING);
     scene.fill(0);
     scene.noStroke();
-    scene.rect(0, 0, MAP_SIZE * SCALE, MAP_SIZE * SCALE);
+    scene.rect(0, 0, ARENA_SIZE, ARENA_SIZE);
     
     // Scale and draw game elements
     scene.scale(SCALE);
@@ -187,6 +202,130 @@ function draw() {
     
     // Apply visibility ring mask using pixel processing
     applyVisibilityMask(PADDING);
+    
+    // === PASS C: Re-draw submarines at full brightness (after dimming) ===
+    push();
+    translate(PADDING, PADDING);
+    scale(SCALE);
+    
+    // Draw submarines at full brightness on main canvas
+    if (player1.alive) {
+        push();
+        translate(player1.x, player1.y);
+        rotate(player1.angle);
+        
+        fill(player1.color);
+        noStroke();
+        
+        rect(-player1.width/2, -player1.height/2, player1.width, player1.height);
+        rect(player1.width/2, -1, 4, 2);
+        rect(-1, -player1.height/2 - 1, 2, 2);
+        
+        pop();
+    }
+    
+    if (player2.alive) {
+        push();
+        translate(player2.x, player2.y);
+        rotate(player2.angle);
+        
+        fill(player2.color);
+        noStroke();
+        
+        rect(-player2.width/2, -player2.height/2, player2.width, player2.height);
+        rect(player2.width/2, -1, 4, 2);
+        rect(-1, -player2.height/2 - 1, 2, 2);
+        
+        pop();
+    }
+    
+    pop();
+    
+    // === PASS D: Render annulus preview buffers ===
+    renderAnnulusPreviews(PADDING, ARENA_BOTTOM);
+}
+
+// Render both annulus preview buffers with rotation and masking
+function renderAnnulusPreviews(padding, arenaBottom) {
+    const miniW = OUTER_RADIUS * 2 + 6;
+    const miniH = OUTER_RADIUS * 2 + 6;
+    const uiPadding = 20;
+    
+    // Calculate centers for both previews
+    const leftCx = width * 0.25;
+    const leftCy = arenaBottom + uiPadding + miniH / 2;
+    const rightCx = width * 0.75;
+    const rightCy = arenaBottom + uiPadding + miniH / 2;
+    
+    // Render player 1's annulus view
+    renderAnnulusPreview(mini1, player1, miniW, miniH, padding);
+    image(mini1, leftCx - miniW / 2, leftCy - miniH / 2);
+    
+    // Render player 2's annulus view
+    renderAnnulusPreview(mini2, player2, miniW, miniH, padding);
+    image(mini2, rightCx - miniW / 2, rightCy - miniH / 2);
+}
+
+// Render a single annulus preview for a submarine
+function renderAnnulusPreview(g, sub, miniW, miniH, padding) {
+    // Clear buffer (transparent)
+    g.clear();
+    
+    // Fill with green background
+    g.background(0, 255, 0);
+    
+    // Calculate mask center (submarine position + forward offset)
+    const maskCx = padding + sub.x * SCALE + cos(sub.angle) * MASK_FORWARD_OFFSET;
+    const maskCy = padding + sub.y * SCALE + sin(sub.angle) * MASK_FORWARD_OFFSET;
+    
+    // Render world rotated so submarine's forward direction points up
+    g.push();
+    g.translate(miniW / 2, miniH / 2);
+    g.rotate((PI / 2) - sub.angle + PI); // Forward points up, then rotate 180 degrees
+    g.translate(-maskCx, -maskCy); // Center on mask center
+    
+    // Draw black arena
+    g.translate(padding, padding);
+    g.fill(0);
+    g.noStroke();
+    g.rect(0, 0, MAP_SIZE * SCALE, MAP_SIZE * SCALE);
+    
+    // Draw world elements in scaled coordinates
+    g.scale(SCALE);
+    
+    // Draw terrain
+    drawTerrainToBuffer(g, terrain);
+    
+    // Draw particles
+    drawParticlesToBuffer(g, particles);
+    
+    // Draw torpedoes
+    for (let torpedo of torpedoes) {
+        drawTorpedoToBuffer(g, torpedo);
+    }
+    
+    // Draw submarines
+    drawSubmarineToBuffer(g, player1);
+    drawSubmarineToBuffer(g, player2);
+    
+    g.pop();
+    
+    // Apply annulus mask (make everything outside the ring transparent)
+    g.loadPixels();
+    for (let y = 0; y < miniH; y++) {
+        for (let x = 0; x < miniW; x++) {
+            const dx = x - miniW / 2;
+            const dy = y - miniH / 2;
+            const d2 = dx * dx + dy * dy;
+            
+            // If pixel is NOT in annulus range, set alpha to 0
+            if (d2 < INNER_RADIUS_SQ || d2 > OUTER_RADIUS_SQ) {
+                const idx = (y * miniW + x) * 4;
+                g.pixels[idx + 3] = 0; // Set alpha to transparent
+            }
+        }
+    }
+    g.updatePixels();
 }
 
 // Helper function to draw terrain to a graphics buffer
@@ -303,9 +442,9 @@ function applyVisibilityMask(padding) {
             // If NOT visible (not in either ring), dim by 50%
             if (!inRing1 && !inRing2) {
                 const idx = (y * width + x) * 4;
-                pixels[idx + 0] *= 0.5; // Red
-                pixels[idx + 1] *= 0.5; // Green
-                pixels[idx + 2] *= 0.5; // Blue
+                pixels[idx + 0] *= 0.1; // Red
+                pixels[idx + 1] *= 0.1; // Green
+                pixels[idx + 2] *= 0.1; // Blue
                 // Leave alpha unchanged
             }
         }
