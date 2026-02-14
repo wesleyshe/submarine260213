@@ -88,13 +88,15 @@ class Terrain {
             let attempts = 0;
             let validSeed = false;
             
-            while (!validSeed && attempts < 50) {
+            // Increased attempts to find valid positions with proper spacing
+            while (!validSeed && attempts < 100) {
                 seedX = Math.floor(random(edgeMargin, gridSize - edgeMargin));
                 seedY = Math.floor(random(edgeMargin, gridSize - edgeMargin));
                 
                 const clearRadius = CONFIG.TERRAIN.BLOB_CLEAR_RADIUS;
                 validSeed = true;
                 
+                // Check that the area is clear (ensures 3x submarine width spacing)
                 for (let dy = -clearRadius; dy <= clearRadius; dy++) {
                     for (let dx = -clearRadius; dx <= clearRadius; dx++) {
                         const checkX = seedX + dx;

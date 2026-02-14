@@ -17,7 +17,7 @@ const CONFIG = {
     
     // UI and text
     UI: {
-        FONT_FAMILY: 'Consolas, Monaco, "Courier New", monospace', // Terminal-like fonts
+        FONT_FAMILY: "Courier New", // Terminal-like fonts
         WINNER_TEXT_SIZE: 48,
         RESTART_TEXT_SIZE: 24,
         OVERLAY_ALPHA: 180 // Semi-transparent overlay darkness
@@ -54,9 +54,9 @@ const CONFIG = {
         HOLD_RED_SECONDS: 0.5, // Stay red for this long after stopping
         FADE_SECONDS: 1.5, // Fade from red to green over this duration
         COLLISION_RADIUS: 5, // Approximate radius for bounds checking
-        SPAWN_CLEAR_RADIUS: 20, // Increased to ensure more space around spawn
+        SPAWN_CLEAR_RADIUS: 24, // 3x width for safe spawning
         MIN_SPAWN_DISTANCE: 80,
-        MIN_PASSAGE_WIDTH: 16, // Minimum width of clear passage needed for spawning
+        MIN_PASSAGE_WIDTH: 24, // Minimum width (3x submarine width) for passable corridors
         NOSE_LENGTH: 4, // Extended nose indicator
         TOWER_WIDTH: 2,
         TOWER_HEIGHT: 2
@@ -64,11 +64,11 @@ const CONFIG = {
     
     // Torpedo properties
     TORPEDO: {
-        SPEED: 1.5,
+        SPEED: 0.75,
         RADIUS: 2,
         DAMAGE: 35, // Currently unused (one-hit kill)
-        LIFETIME: 200, // Frames before despawn
-        COOLDOWN: 30, // Frames between shots
+        LIFETIME: 1000, // Frames before despawn
+        COOLDOWN: 100, // Frames between shots
         SPAWN_DISTANCE: 8, // Distance in front of submarine
         WIDTH: 4,
         HEIGHT: 2,
@@ -81,14 +81,14 @@ const CONFIG = {
     TERRAIN: {
         PIXEL_SIZE: 2,
         TARGET_DENSITY: 0.1, // 15% coverage
-        EDGE_GROWTH_DEPTH: 0.25, // How far terrain extends from edges (fraction of grid)
-        GROWTH_PROBABILITY: 0.25,
-        MIN_BLOBS: 3,
-        MAX_BLOBS: 4,
-        BLOB_MIN_SIZE: 40,
-        BLOB_MAX_SIZE: 80,
+        EDGE_GROWTH_DEPTH: 0.2, // How far terrain extends from edges (fraction of grid)
+        GROWTH_PROBABILITY: 0.2,
+        MIN_BLOBS: 2,
+        MAX_BLOBS: 3,
+        BLOB_MIN_SIZE: 100, // At least 4x submarine pixels (submarine = 8x4=32 pixels, 4x32=128)
+        BLOB_MAX_SIZE: 150, // Larger blobs for more substantial obstacles
         BLOB_EDGE_MARGIN: 25, // Pixels from edge
-        BLOB_CLEAR_RADIUS: 3, // Grid cells that must be clear around seed
+        BLOB_CLEAR_RADIUS: 12, // Grid cells that must be clear around seed (3x submarine width in grid units)
         BLOB_GROWTH_PROBABILITY: 0.6,
         SMOOTH_PASSES: 2,
         SMOOTH_SURVIVE_THRESHOLD: 3, // Neighbors needed for cell to survive
