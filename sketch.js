@@ -315,10 +315,31 @@ function renderAnnulusPreview(g, sub, miniW, miniH, padding) {
     const maskCx = padding + sub.x * SCALE + cos(sub.angle) * MASK_FORWARD_OFFSET;
     const maskCy = padding + sub.y * SCALE + sin(sub.angle) * MASK_FORWARD_OFFSET;
     
+    // Calculate submarine position in screen coordinates
+    const subScreenX = padding + sub.x * SCALE;
+    const subScreenY = padding + sub.y * SCALE;
+    
+    // Compute vector from mask center to submarine center
+    const vecX = subScreenX - maskCx;
+    const vecY = subScreenY - maskCy;
+    
+    // Rotation angle used for this preview
+    const rotationAngle = (PI / 2) - sub.angle + PI;
+    
+    // Rotate this vector by the preview's rotation
+    const cos_r = cos(rotationAngle);
+    const sin_r = sin(rotationAngle);
+    const rotVecX = vecX * cos_r - vecY * sin_r;
+    const rotVecY = vecX * sin_r + vecY * cos_r;
+    
+    // Marker position in preview space (relative to center)
+    const markerX = miniW / 2 + rotVecX;
+    const markerY = miniH / 2 + rotVecY;
+    
     // Render world rotated so submarine's forward direction points up
     g.push();
     g.translate(miniW / 2, miniH / 2);
-    g.rotate((PI / 2) - sub.angle + PI); // Forward points up, then rotate 180 degrees
+    g.rotate(rotationAngle);
     g.translate(-maskCx, -maskCy); // Center on mask center
     
     // Draw black arena
@@ -363,6 +384,9 @@ function renderAnnulusPreview(g, sub, miniW, miniH, padding) {
         }
     }
     g.updatePixels();
+    
+    // Draw self-submarine marker on top
+    drawSelfMarker(g, markerX, markerY, sub, 0); // 0 = no extra rotation for annulus
 }
 
 // Render both low-res ring displays
@@ -388,9 +412,32 @@ function renderLowResRing(cx, cy, sub, padding) {
     const maskCx = padding + sub.x * SCALE + cos(sub.angle) * MASK_FORWARD_OFFSET;
     const maskCy = padding + sub.y * SCALE + sin(sub.angle) * MASK_FORWARD_OFFSET;
     
+    // Calculate submarine position in screen coordinates
+    const subScreenX = padding + sub.x * SCALE;
+    const subScreenY = padding + sub.y * SCALE;
+    
+    // Compute vector from mask center to submarine center
+    const vecX = subScreenX - maskCx;
+    const vecY = subScreenY - maskCy;
+    
     // Rotation angle (same as annulus preview: forward up + 180, then +90 clockwise)
     const rotationAngle = (PI / 2) - sub.angle + PI;
     const lowresRotation = rotationAngle + (PI / 2); // Additional 90 degrees clockwise
+    
+    // Rotate vector by the low-res rotation
+    const cos_r = cos(lowresRotation);
+    const sin_r = sin(lowresRotation);
+    const rotVecX = vecX * cos_r - vecY * sin_r;
+    const rotVecY = vecX * sin_r + vecY * cos_r;
+    
+    // Rotate marker position counter-clockwise by 90 degrees around the ring center
+    // Rotation by -PI/2: (x, y) -> (y, -x)
+    const finalRotVecX = rotVecY;
+    const finalRotVecY = -rotVecX;
+    
+    // Marker position (relative to ring center)
+    const markerX = cx + finalRotVecX;
+    const markerY = cy + finalRotVecY;
     
     // Draw each chunk around the ring
     for (let i = 0; i < LOWRES_RING_SEGMENTS; i++) {
@@ -405,6 +452,13 @@ function renderLowResRing(cx, cy, sub, padding) {
         // Draw the chunk
         drawRingChunk(cx, cy, chunkAngle, chunkColor);
     }
+    
+    // Draw self-submarine marker on top using a temporary graphics context
+    push();
+    translate(0, 0); // Work in canvas coordinates
+    // Create marker at the computed position
+    drawSelfMarkerDirect(markerX, markerY, sub, (0)); // PI/2 = 90 degrees for low-res rotation
+    pop();
 }
 
 // Sample the annulus preview at a given angle to determine chunk color
@@ -494,6 +548,56 @@ function drawRingChunk(cx, cy, angle, chunkColor) {
     noStroke();
     rectMode(CENTER);
     rect(0, -avgRadius, LOWRES_RING_CHUNK_WIDTH, radialThickness - LOWRES_RING_CHUNK_GAP);
+    
+    pop();
+}
+
+// Draw self-submarine marker on a graphics buffer (for annulus previews)
+function drawSelfMarker(g, x, y, sub, extraRotation) {
+    // Calculate marker size based on ring thickness
+    const ringThickness = OUTER_RADIUS - INNER_RADIUS;
+    const markerSize = ringThickness * 0.5; // Half the ring thickness
+    
+    g.push();
+    g.translate(x, y);
+    // Marker points "up" in preview space (which is forward direction)
+    g.rotate(extraRotation);
+    
+    // Draw a small directional triangle/wedge
+    g.fill(sub.getColor());
+    g.noStroke();
+    
+    // Triangle pointing up
+    g.beginShape();
+    g.vertex(0, -markerSize * 0.6); // Top point
+    g.vertex(-markerSize * 0.4, markerSize * 0.4); // Bottom left
+    g.vertex(markerSize * 0.4, markerSize * 0.4); // Bottom right
+    g.endShape(CLOSE);
+    
+    g.pop();
+}
+
+// Draw self-submarine marker directly on canvas (for low-res rings)
+function drawSelfMarkerDirect(x, y, sub, extraRotation) {
+    // Calculate marker size based on ring thickness
+    const ringThickness = OUTER_RADIUS - INNER_RADIUS;
+    const markerSize = ringThickness * 0.5; // Half the ring thickness
+    
+    push();
+    translate(x, y);
+    // Marker points "up" in preview space (which is forward direction)
+    rotate(extraRotation);
+    
+    // Draw a small directional triangle/wedge
+    fill(sub.getColor());
+    noStroke();
+    
+    // Triangle pointing up
+    beginShape();
+    vertex(0, -markerSize * 0.6); // Top point
+    vertex(-markerSize * 0.4, markerSize * 0.4); // Bottom left
+    vertex(markerSize * 0.4, markerSize * 0.4); // Bottom right
+    endShape(CLOSE);
     
     pop();
 }
