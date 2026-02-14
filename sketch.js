@@ -26,14 +26,27 @@ const INNER_RADIUS_SQ = INNER_RADIUS * INNER_RADIUS;
 const OUTER_RADIUS_SQ = OUTER_RADIUS * OUTER_RADIUS;
 const MASK_FORWARD_OFFSET = 40; // How far ahead of submarine to center the ring
 
+// Low-res ring display parameters
+const LOWRES_RING_SEGMENTS = 50; // Number of chunks around the circle
+const LOWRES_RING_INNER_RADIUS = 100; // Inner radius of the ring strip (matches INNER_RADIUS)
+const LOWRES_RING_OUTER_RADIUS = 125; // Outer radius of the ring strip (matches OUTER_RADIUS)
+const LOWRES_RING_CHUNK_WIDTH = 12; // Visual width of each chunk (pixels)
+const LOWRES_RING_CHUNK_GAP = 1; // Gap between chunks (pixels)
+const LOWRES_RING_SAMPLES = 3; // Number of radial samples per chunk
+const COLUMN_SPACING = 60; // Horizontal spacing between display columns
+
 function setup() {
     // Add padding for green border and UI area on the right
     const PADDING = 40;
     const miniW = OUTER_RADIUS * 2 + 6;
     const miniH = OUTER_RADIUS * 2 + 6;
     const RIGHT_PANEL_WIDTH = miniW + PADDING * 2;
+    const LOWRES_PANEL_WIDTH = LOWRES_RING_OUTER_RADIUS * 2 + PADDING * 2;
     
-    const canvas = createCanvas(MAP_SIZE * SCALE + PADDING * 2 + RIGHT_PANEL_WIDTH, MAP_SIZE * SCALE + PADDING * 2);
+    const canvas = createCanvas(
+        MAP_SIZE * SCALE + PADDING * 2 + RIGHT_PANEL_WIDTH + LOWRES_PANEL_WIDTH, 
+        MAP_SIZE * SCALE + PADDING * 2
+    );
     canvas.parent('game-container');
     
     // Use pixel density 1 for predictable and fast pixel processing
@@ -266,6 +279,9 @@ function draw() {
     
     // === PASS D: Render annulus preview buffers ===
     renderAnnulusPreviews(PADDING, ARENA_RIGHT, ARENA_TOP, ARENA_HEIGHT);
+    
+    // === PASS E: Render low-res ring displays ===
+    renderLowResRings(PADDING, ARENA_RIGHT, ARENA_TOP, ARENA_HEIGHT);
 }
 
 // Render both annulus preview buffers with rotation and masking
@@ -347,6 +363,139 @@ function renderAnnulusPreview(g, sub, miniW, miniH, padding) {
         }
     }
     g.updatePixels();
+}
+
+// Render both low-res ring displays
+function renderLowResRings(padding, arenaRight, arenaTop, arenaHeight) {
+    const miniW = OUTER_RADIUS * 2 + 6;
+    const ringSize = LOWRES_RING_OUTER_RADIUS * 2;
+    
+    // Calculate centers - to the right of the annulus previews with column spacing
+    const cx = arenaRight + padding + miniW + COLUMN_SPACING + ringSize / 2;
+    const topCy = arenaTop + arenaHeight * 0.25;
+    const bottomCy = arenaTop + arenaHeight * 0.75;
+    
+    // Render player 1's low-res ring (top)
+    renderLowResRing(cx, topCy, player1, padding);
+    
+    // Render player 2's low-res ring (bottom)
+    renderLowResRing(cx, bottomCy, player2, padding);
+}
+
+// Render a single low-res ring display for a submarine
+function renderLowResRing(cx, cy, sub, padding) {
+    // Calculate mask center (same as annulus preview)
+    const maskCx = padding + sub.x * SCALE + cos(sub.angle) * MASK_FORWARD_OFFSET;
+    const maskCy = padding + sub.y * SCALE + sin(sub.angle) * MASK_FORWARD_OFFSET;
+    
+    // Rotation angle (same as annulus preview: forward up + 180, then +90 clockwise)
+    const rotationAngle = (PI / 2) - sub.angle + PI;
+    const lowresRotation = rotationAngle + (PI / 2); // Additional 90 degrees clockwise
+    
+    // Draw each chunk around the ring
+    for (let i = 0; i < LOWRES_RING_SEGMENTS; i++) {
+        // Angle for this chunk (in ring space, 0 = up)
+        const chunkAngle = (i / LOWRES_RING_SEGMENTS) * TWO_PI;
+        
+        // Sample the annulus preview to determine chunk color
+        const chunkColor = sampleAnnulusForChunk(
+            chunkAngle, lowresRotation, maskCx, maskCy, padding
+        );
+        
+        // Draw the chunk
+        drawRingChunk(cx, cy, chunkAngle, chunkColor);
+    }
+}
+
+// Sample the annulus preview at a given angle to determine chunk color
+function sampleAnnulusForChunk(chunkAngle, rotationAngle, maskCx, maskCy, padding) {
+    let hasSubmarine = false;
+    let hasTorpedo = false;
+    let hasTerrain = false;
+    let submarineColor = null;
+    
+    // Sample at multiple radii within the annulus
+    for (let s = 0; s < LOWRES_RING_SAMPLES; s++) {
+        const radius = lerp(INNER_RADIUS, OUTER_RADIUS, s / (LOWRES_RING_SAMPLES - 1));
+        
+        // Position in ring-local space (relative to mask center, unrotated)
+        const localX = cos(chunkAngle) * radius;
+        const localY = sin(chunkAngle) * radius;
+        
+        // Rotate back to world view (inverse of preview rotation)
+        const cos_r = cos(-rotationAngle);
+        const sin_r = sin(-rotationAngle);
+        const rotX = localX * cos_r - localY * sin_r;
+        const rotY = localX * sin_r + localY * cos_r;
+        
+        // World position (screen coordinates)
+        const worldX = maskCx + rotX;
+        const worldY = maskCy + rotY;
+        
+        // Convert to map coordinates
+        const mapX = (worldX - padding) / SCALE;
+        const mapY = (worldY - padding) / SCALE;
+        
+        // Check what's at this position
+        // Check submarines
+        if (checkPointNearSubmarine(mapX, mapY, player1)) {
+            hasSubmarine = true;
+            submarineColor = player1.getColor();
+        }
+        if (checkPointNearSubmarine(mapX, mapY, player2)) {
+            hasSubmarine = true;
+            submarineColor = player2.getColor();
+        }
+        
+        // Check torpedoes
+        for (let torpedo of torpedoes) {
+            if (torpedo.alive && dist(mapX, mapY, torpedo.x, torpedo.y) < 3) {
+                hasTorpedo = true;
+                break;
+            }
+        }
+        
+        // Check terrain
+        if (terrain.isSolid(mapX, mapY)) {
+            hasTerrain = true;
+        }
+    }
+    
+    // Determine chunk color based on what was found
+    if (hasSubmarine && submarineColor) {
+        return submarineColor;
+    } else if (hasTorpedo) {
+        return color(255, 0, 0); // Red for torpedoes
+    } else if (hasTerrain) {
+        return color(0, 255, 0); // Green for terrain
+    } else {
+        return color(0, 0, 0); // Black for empty space
+    }
+}
+
+// Check if a point is near a submarine
+function checkPointNearSubmarine(x, y, sub) {
+    if (!sub.alive) return false;
+    return dist(x, y, sub.x, sub.y) < sub.width / 2 + 2;
+}
+
+// Draw a single chunk of the low-res ring
+function drawRingChunk(cx, cy, angle, chunkColor) {
+    push();
+    translate(cx, cy);
+    rotate(angle);
+    
+    // Calculate chunk dimensions
+    const avgRadius = (LOWRES_RING_INNER_RADIUS + LOWRES_RING_OUTER_RADIUS) / 2;
+    const radialThickness = LOWRES_RING_OUTER_RADIUS - LOWRES_RING_INNER_RADIUS;
+    
+    // Draw as a rectangle at the radius
+    fill(chunkColor);
+    noStroke();
+    rectMode(CENTER);
+    rect(0, -avgRadius, LOWRES_RING_CHUNK_WIDTH, radialThickness - LOWRES_RING_CHUNK_GAP);
+    
+    pop();
 }
 
 // Helper function to draw terrain to a graphics buffer
