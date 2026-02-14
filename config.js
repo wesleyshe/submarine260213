@@ -6,7 +6,14 @@ const CONFIG = {
     SCALE: 4, // Display scale multiplier
     PADDING: 70, // Border padding around arena
     ANNULUS_GAP: 150, // Gap between arena right edge and annulus displays
-    LOWRES_GAP: 60, // Gap between annulus displays and low-res displays
+    LOWRES_GAP: 100, // Gap between annulus displays and low-res displays
+    
+    // Display positioning and sizing
+    DISPLAY: {
+        ANNULUS_BORDER: 6, // Border/padding around annulus preview displays
+        PLAYER1_VERTICAL_POS: 0.25, // Player 1 displays at 25% down from top
+        PLAYER2_VERTICAL_POS: 0.75, // Player 2 displays at 75% down from top
+    },
     
     // UI and text
     UI: {
@@ -25,8 +32,8 @@ const CONFIG = {
     
     // Low-res ring display
     LOWRES_RING: {
-        SEGMENTS: 50, // Number of chunks around the circle
-        INNER_RADIUS: 100,
+        SEGMENTS: 48, // Number of chunks around the circle
+        INNER_RADIUS: 105,
         OUTER_RADIUS: 125,
         CHUNK_WIDTH: 12, // Visual width of each chunk (pixels)
         CHUNK_GAP: 1, // Gap between chunks (pixels)
@@ -77,7 +84,7 @@ const CONFIG = {
         EDGE_GROWTH_DEPTH: 0.25, // How far terrain extends from edges (fraction of grid)
         GROWTH_PROBABILITY: 0.25,
         MIN_BLOBS: 3,
-        MAX_BLOBS: 6,
+        MAX_BLOBS: 4,
         BLOB_MIN_SIZE: 40,
         BLOB_MAX_SIZE: 80,
         BLOB_EDGE_MARGIN: 25, // Pixels from edge
@@ -141,6 +148,18 @@ const CONFIG = {
         PARTICLE: [0, 255, 0], // Green
         SUBMARINE_IDLE: [0, 255, 0], // Green
         SUBMARINE_MOVING: [255, 0, 0] // Red
+    },
+    
+    // Sound settings
+    SOUNDS: {
+        VOLUMES: {
+            ambient: 0.2,     // Very low - background ocean ambience
+            engine: 0.12,     // Low - submarine engine rumble
+            torpedo: 0.25,    // Medium - torpedo launch
+            collision: 0.8,   // High - collision impacts (louder, more noticeable)
+            explosion: 0.4    // Medium-high - explosion
+        },
+        COLLISION_COOLDOWN: 200 // Milliseconds between collision sounds per player
     }
 };
 

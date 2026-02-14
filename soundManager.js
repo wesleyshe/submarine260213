@@ -20,15 +20,6 @@ const SoundManager = {
         2: 0
     },
     
-    // Volume levels (relative scale)
-    volumes: {
-        ambient: 0.2,    // Very low
-        engine: 0.12,     // Low (slightly reduced from 0.15)
-        torpedo: 0.25,    // Medium
-        collision: 0.8,  // High (louder, more noticeable)
-        explosion: 0.4    // High
-    },
-    
     // Initialization flag
     initialized: false,
     
@@ -66,7 +57,7 @@ const SoundManager = {
             
             oscillator.type = 'sine';
             oscillator.frequency.value = 60; // Low rumble
-            gainNode.gain.value = this.volumes.ambient;
+            gainNode.gain.value = CONFIG.SOUNDS.VOLUMES.ambient;
             
             oscillator.connect(gainNode);
             gainNode.connect(this.audioContext.destination);
@@ -152,7 +143,7 @@ const SoundManager = {
                 masterGain: masterGain,
                 filter: filter,
                 playing: false,
-                targetVolume: this.volumes.engine,
+                targetVolume: CONFIG.SOUNDS.VOLUMES.engine,
                 start: function() {
                     if (!this.playing) {
                         this.mainOsc.start();
@@ -299,7 +290,7 @@ const SoundManager = {
         
         if (!this.ambientPlaying) {
             this.sounds.ambient.start();
-            this.sounds.ambient.gainNode.gain.value = this.volumes.ambient;
+            this.sounds.ambient.gainNode.gain.value = CONFIG.SOUNDS.VOLUMES.ambient;
             this.ambientPlaying = true;
         }
     },
@@ -346,7 +337,7 @@ const SoundManager = {
         if (this.enginePlaying && this.sounds.engine.masterGain) {
             // Volume scaling: 70% at idle to 100% at max speed (subtle)
             const volumeScale = 0.7 + (speedRatio * 0.3);
-            const targetVolume = this.volumes.engine * volumeScale;
+            const targetVolume = CONFIG.SOUNDS.VOLUMES.engine * volumeScale;
             
             // Smooth volume transition
             this.sounds.engine.masterGain.gain.linearRampToValueAtTime(
@@ -378,14 +369,14 @@ const SoundManager = {
      * Play torpedo launch sound
      */
     playTorpedoLaunch() {
-        this.playOneShot('torpedo', this.volumes.torpedo, 0);
+        this.playOneShot('torpedo', CONFIG.SOUNDS.VOLUMES.torpedo, 0);
     },
     
     /**
      * Play explosion sound
      */
     playExplosion() {
-        this.playOneShot('explosion', this.volumes.explosion, 0);
+        this.playOneShot('explosion', CONFIG.SOUNDS.VOLUMES.explosion, 0);
     },
     
     /**
@@ -394,13 +385,13 @@ const SoundManager = {
     playCollision(playerNumber, speed) {
         const now = Date.now();
         
-        // Check cooldown (200ms)
-        if (now - this.collisionCooldowns[playerNumber] < 200) {
+        // Check cooldown
+        if (now - this.collisionCooldowns[playerNumber] < CONFIG.SOUNDS.COLLISION_COOLDOWN) {
             return;
         }
         
         this.collisionCooldowns[playerNumber] = now;
-        this.playOneShot('collision', this.volumes.collision, speed || 0);
+        this.playOneShot('collision', CONFIG.SOUNDS.VOLUMES.collision, speed || 0);
     },
     
     /**

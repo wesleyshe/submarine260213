@@ -19,7 +19,7 @@ let layoutInfo = {};
 
 function setup() {
     try {
-        const miniSize = CONFIG.VISIBILITY.OUTER_RADIUS * 2 + 6;
+        const miniSize = CONFIG.VISIBILITY.OUTER_RADIUS * 2 + CONFIG.DISPLAY.ANNULUS_BORDER;
         const lowresSize = CONFIG.LOWRES_RING.OUTER_RADIUS * 2;
         
         const canvas = createCanvas(
@@ -304,8 +304,8 @@ function renderAnnulusPreviews() {
     if (!player1 || !player2 || !mini1 || !mini2) return;
     
     const cx = layoutInfo.arenaRight + CONFIG.ANNULUS_GAP + layoutInfo.miniSize / 2;
-    const topCy = layoutInfo.arenaTop + layoutInfo.arenaHeight * 0.25;
-    const bottomCy = layoutInfo.arenaTop + layoutInfo.arenaHeight * 0.75;
+    const topCy = layoutInfo.arenaTop + layoutInfo.arenaHeight * CONFIG.DISPLAY.PLAYER1_VERTICAL_POS;
+    const bottomCy = layoutInfo.arenaTop + layoutInfo.arenaHeight * CONFIG.DISPLAY.PLAYER2_VERTICAL_POS;
     
     renderAnnulusPreview(mini1, player1, layoutInfo.miniSize, layoutInfo.miniSize);
     image(mini1, cx - layoutInfo.miniSize / 2, topCy - layoutInfo.miniSize / 2);
@@ -379,13 +379,13 @@ function renderAnnulusPreview(g, sub, miniW, miniH) {
 function renderLowResRings() {
     if (!player1 || !player2) return;
     
-    const miniW = CONFIG.VISIBILITY.OUTER_RADIUS * 2 + 6;
+    const miniW = CONFIG.VISIBILITY.OUTER_RADIUS * 2 + CONFIG.DISPLAY.ANNULUS_BORDER;
     const ringSize = CONFIG.LOWRES_RING.OUTER_RADIUS * 2;
     
     // Position: arenaRight + ANNULUS_GAP + miniW + LOWRES_GAP + ringSize/2
     const cx = layoutInfo.arenaRight + CONFIG.ANNULUS_GAP + miniW + CONFIG.LOWRES_GAP + ringSize / 2;
-    const topCy = layoutInfo.arenaTop + layoutInfo.arenaHeight * 0.25;
-    const bottomCy = layoutInfo.arenaTop + layoutInfo.arenaHeight * 0.75;
+    const topCy = layoutInfo.arenaTop + layoutInfo.arenaHeight * CONFIG.DISPLAY.PLAYER1_VERTICAL_POS;
+    const bottomCy = layoutInfo.arenaTop + layoutInfo.arenaHeight * CONFIG.DISPLAY.PLAYER2_VERTICAL_POS;
     
     renderLowResRing(cx, topCy, player1);
     renderLowResRing(cx, bottomCy, player2);
@@ -516,7 +516,7 @@ function drawGameOverUI() {
     textSize(CONFIG.UI.WINNER_TEXT_SIZE);
     fill(0, 255, 0); // Green text
     
-    const winnerText = winner === 1 ? 'player 1 wins!' : 'player 1 wins!';
+    const winnerText = winner === 1 ? 'player 1 wins!' : 'player 2 wins!';
     text(winnerText, width / 2, height / 2 - 40);
     
     // Restart instruction
